@@ -28,7 +28,7 @@ class CustomerAccountSchema(ma.Schema):
 
 class ProductSchema(ma.Schema):
     name = fields.String(required=True, validate=validate.Length(min=1))
-    price = fields.Float(required=True, validate=validate.Length(min=0))
+    price = fields.Float(required=True, validate=validate.Range(min=0))
 
     class Meta:
         fields = ("name", "price", "id")
@@ -79,6 +79,9 @@ class Product(db.Model):
     price = db.Column(db.Float, nullable=False)
     orders = db.relationship('Order', secondary=order_product, backref=db.backref('products'))
 
+
+###App Route Methods
+##Customer
 # Get all customer info
 @app.route('/customers', methods=['GET'])
 def get_customers():
@@ -130,6 +133,7 @@ def delete_customer(id):
 
     return jsonify({"message": "Customer removed sucesfully"}), 200
 
+## Customer Accounts
 # Get all customer accounts
 @app.route('/customer_accounts', methods=['GET'])
 def get_customer_accounts():
@@ -170,6 +174,69 @@ def update_cusomter_account(id):
     db.session.commit()
 
     return jsonify({"message": "Customer updated sucesfully"}), 200
+
+# Delete Customer Account by id
+@app.route("/customer_accounts/<int:id>", methods=["DELETE"])
+def delete_customer_account(id):
+    customer_account = CustomerAccount.query.get_or_404(id)
+    db.session.delete(customer_account)
+    db.session.commit()
+
+    return jsonify({"message": "Customer removed sucesfully"}), 200
+
+## Products
+# Get all products
+@app.route('/products', methods=['GET'])
+def get_products():
+    products = Product.query.all()
+    return products_schema.jsonify(products)
+
+# Get specific product info by id
+@app.route('/products/<int:id>', methods=['GET'])
+def get_product_by_id(id):
+    product = Product.query.filter(Product.id == id).first()
+    return product_schema.jsonify(product)
+
+# Add a new product
+@app.route("/products", methods=["POST"])
+def add_product():
+    try:
+        product_data = product_schema.load(request.json)
+    except ValidationError as e:
+        print(f"Error: {e}")
+        return jsonify(e.messages), 400
+    
+    new_product = Product(name=product_data['name'], price=product_data['price'])
+    db.session.add(new_product)
+    db.session.commit()
+    return jsonify({"message": "New product added successfully"}), 201
+
+# Update existing products by id
+@app.route("/products/<int:id>", methods=["PUT"])
+def update_product(id):
+    product = Product.query.get_or_404(id)
+    try:
+        product_data = product_schema.load(request.json)
+    except ValidationError as e:
+        return jsonify(e.messages), 400
+    
+    product.name = product_data['name']
+    product.price = product_data['price']
+    db.session.commit()
+
+    return jsonify({"message": "Product updated sucesfully"}), 200
+
+# Delete products by id
+@app.route("/products/<int:id>", methods=["DELETE"])
+def delete_product(id):
+    product = Product.query.get_or_404(id)
+    db.session.delete(product)
+    db.session.commit()
+
+    return jsonify({"message": "Product removed sucesfully"}), 200
+
+
+## Orders
 
 # Creates database structure if it doesnt already exist
 with app.app_context():
