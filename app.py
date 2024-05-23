@@ -270,15 +270,11 @@ def get_order_details(id):
     order = Order.query.filter(Order.id == id).first()
     return order_schema.jsonify(order)
 
-# Track order
-@app.route("/orders/<int:id>", methods=["GET"])
+# Show all customer orders
+@app.route("/orders/customer/<int:id>", methods=["GET"])
 def track_order(id):
-    pass
-
-# # Show all cusomter orders
-# @app.route("/orders/customer/<int:id>", methods=["GET"])
-# def track_order(id):
-#     pass
+    orders = Order.query.filter(Order.customer_id == id).all()
+    return orders_schema.jsonify(orders)
 
 
 ## Running ----------------------------------------------------------------------------------------------------------------------------
@@ -288,4 +284,4 @@ with app.app_context():
 
 # Just for running from IDE
 if __name__ == '__main__':
-    app.run(debug = True)
+    app.run(debug = True)    
