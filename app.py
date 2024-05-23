@@ -33,6 +33,13 @@ class ProductSchema(ma.Schema):
     class Meta:
         fields = ("name", "price", "id")
 
+class OrderSchema(ma.Schema):
+    customer_id = fields.Integer(required=True)
+    date = fields.Date(required=True)
+
+    class Meta:
+        fields = ("customer_id", "date", "order_items", "id")
+
 # Instance creation of Schemas
 customer_schema = CustomerSchema()
 customers_schema = CustomerSchema(many=True)
@@ -43,6 +50,9 @@ customer_accounts_schema = CustomerAccountSchema(many=True)
 product_schema = ProductSchema()
 products_schema = ProductSchema(many=True)
 
+order_schema = OrderSchema()
+orders_schema = OrderSchema(many=True)
+
 # Creating Models
 class Customer(db.Model):
     __tablename__ = 'Customers'
@@ -52,12 +62,6 @@ class Customer(db.Model):
     phone = db.Column(db.String(15))
     orders = db.relationship('Order', backref='customer')
 
-class Order(db.Model):
-    __tablename__ = 'Orders'
-    id = db.Column(db.Integer, primary_key=True)
-    date = db.Column(db.Date, nullable=False)
-    customer_id = db.Column(db.Integer, db.ForeignKey('Customers.id'))
-
 class CustomerAccount(db.Model):
     __tablename__ = 'Customer_Accounts'
     id = db.Column(db.Integer, primary_key=True)
@@ -66,22 +70,28 @@ class CustomerAccount(db.Model):
     customer_id = db.Column(db.Integer, db.ForeignKey('Customers.id'))
     customer = db.relationship('Customer', backref='customer_account', uselist=False)
 
-# Accessory Table
+# Association Table
 order_product = db.Table('Order_Product',
     db.Column('order_id', db.Integer, db.ForeignKey('Orders.id'), primary_key=True),
     db.Column('product_id', db.Integer, db.ForeignKey('Products.id'), primary_key=True)
 )
+
+class Order(db.Model):
+    __tablename__ = 'Orders'
+    id = db.Column(db.Integer, primary_key=True)
+    date = db.Column(db.Date, nullable=False)
+    customer_id = db.Column(db.Integer, db.ForeignKey('Customers.id'))
+    products = db.relationship('Product', secondary=order_product, backref=db.backref('orders'))
 
 class Product(db.Model):
     __tablename__ = 'Products'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(255), nullable=False)
     price = db.Column(db.Float, nullable=False)
-    orders = db.relationship('Order', secondary=order_product, backref=db.backref('products'))
 
 
 ###App Route Methods
-##Customer
+##Customer ----------------------------------------------------------------------------------------------------------------------------
 # Get all customer info
 @app.route('/customers', methods=['GET'])
 def get_customers():
@@ -133,7 +143,7 @@ def delete_customer(id):
 
     return jsonify({"message": "Customer removed sucesfully"}), 200
 
-## Customer Accounts
+## Customer Accounts ----------------------------------------------------------------------------------------------------------------------------
 # Get all customer accounts
 @app.route('/customer_accounts', methods=['GET'])
 def get_customer_accounts():
@@ -184,7 +194,7 @@ def delete_customer_account(id):
 
     return jsonify({"message": "Customer removed sucesfully"}), 200
 
-## Products
+## Products ----------------------------------------------------------------------------------------------------------------------------
 # Get all products
 @app.route('/products', methods=['GET'])
 def get_products():
@@ -235,9 +245,43 @@ def delete_product(id):
 
     return jsonify({"message": "Product removed sucesfully"}), 200
 
+## Orders ----------------------------------------------------------------------------------------------------------------------------
+# Placing order
+@app.route("/orders", methods=["POST"])
+def place_order():
+    try:
+        order_data = order_schema.load(request.json)
+    except ValidationError as e:
+        print(f"Error: {e}")
+        return jsonify(e.messages), 400
+    
+    new_order = Order(customer_id=order_data['customer_id'], date=order_data['date'])
 
-## Orders
+    for item_id in order_data['order_items']:
+        new_order.products.append(Product.query.filter(Product.id == item_id).first())
+    db.session.add(new_order)
+    db.session.commit()
 
+    return jsonify({"message": "New order placed"}), 201
+
+# Retrieving order
+@app.route("/orders/<int:id>", methods=["GET"])
+def get_order_details(id):
+    order = Order.query.filter(Order.id == id).first()
+    return order_schema.jsonify(order)
+
+# Track order
+@app.route("/orders/<int:id>", methods=["GET"])
+def track_order(id):
+    pass
+
+# # Show all cusomter orders
+# @app.route("/orders/customer/<int:id>", methods=["GET"])
+# def track_order(id):
+#     pass
+
+
+## Running ----------------------------------------------------------------------------------------------------------------------------
 # Creates database structure if it doesnt already exist
 with app.app_context():
     db.create_all()
